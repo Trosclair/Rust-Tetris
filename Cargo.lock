@@ -9,6 +9,7 @@ dependencies = [
  "crossterm",
  "ggez",
  "glam",
+ "rand",
 ]
 
 [[package]]

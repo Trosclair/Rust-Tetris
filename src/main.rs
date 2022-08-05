@@ -4,6 +4,8 @@ use ggez::event::{Axis, Button, ErrorOrigin, GamepadId, MouseButton};
 use ggez::event::winit_event::TouchPhase;
 use ggez::input::keyboard::{KeyCode, KeyInput};
 use glam::{const_uvec4, const_vec4};
+use rand::Rng;
+use std;
 
 // Here we define the size of our game board in terms of how many grid
 // cells it will take up. We choose to make a 30 x 20 game board.
@@ -31,25 +33,48 @@ enum PieceColor {
 struct GameState {
     currentPiece: Piece,
     nextPiece: Piece,
-    holdPiece: Piece,
-    shadowPiece: Piece,
+    holdPiece: Option<Piece>,
     rowsClearedCount: i16,
     score: i32,
-    hasHeldAPiece: bool
+    hasHeldAPiece: bool,
+    board: Vec<Vec<i32>>
 }
 
 impl GameState {
     pub fn new() -> Self {
-
         GameState {
+            rowsClearedCount: 0,
+            score: 0,
+            hasHeldAPiece: false,
+            currentPiece: Piece::GetPiece(),
+            nextPiece: Piece::GetPiece(),
+            holdPiece: None,
+            board: vec![vec![]]
+        }
+    }
 
+    pub fn CheckCollision(rotation: [u32; 4], x: u8, y: u8) {
+        GameState::applyFunctionToEachBlockInAPiece(rotation, x, y, (x, y) ,16)
+    }
+
+    fn IsCollision(x: u8, y: u8) {
+        if (x < 0) || (x >= 10) || (y < 0) || (y >= 20)
+    }
+
+    pub fn applyFunctionToEachBlockInAPiece(rotation: [u32; 4], x: u8, y: u8, function:  fn(u8, u8), iterations: u8) {
+        if iterations > 0
+        {
+            if (rotation & (0x8000 >> iterations)) > 0 {
+                function(x + (iterations % 4), y + (iterations / 4));
+            }
+            GameState::applyFunctionToEachBlockInAPiece(rotation, x, y, function,iterations - 1);
         }
     }
 }
 
 struct Piece {
     PieceSize: u8,
-    RotationState: u8,
+    RotationState: usize,
     X: u8,
     Y: u8,
     Rotation: [u32; 4],
@@ -58,29 +83,20 @@ struct Piece {
 
 impl Piece {
     fn new(size: u8, pieceColor: PieceColor, rotation: [u32; 4]) -> Self {
-
         Piece {
             PieceSize: size,
             RotationState: 0,
-            X: 0,
+            X: 4,
             Y: 0,
             Rotation: rotation,
             PieceColor: pieceColor
         }
     }
 
-    pub fn applyFunctionToEachBlockInAPiece(&self, function:  fn(u8, u8), iterations: u8) {
-        if iterations > 0
-        {
-            if (self.Rotation[self.RotationState] & (0x8000 >> iterations)) > 0 {
-                function(self.X + (iterations % 4), self.Y + (iterations / 4));
-            }
-            self.applyFunctionToEachBlockInAPiece(function, iterations - 1);
-        }
-    }
+    fn getRotationState(&self) -> u32 { return self.Rotation[self.RotationState]; }
 
-    pub fn GetPiece(pieceNumber: u8) -> Piece {
-        return match pieceNumber
+    pub fn GetPiece() -> Piece {
+        match rand::thread_rng().gen_range(0..7)
         {
             0 => Piece::new(4, PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222]),
             1 => Piece::new(3, PieceColor::Blue, [0x44C0, 0x8E00, 0x6440, 0x0E20]),
