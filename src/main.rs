@@ -32,31 +32,31 @@ enum PieceColor {
 }
 
 struct GameState {
-    currentPiece: Piece,
-    nextPiece: Piece,
-    holdPiece: Option<Piece>,
-    rowsClearedCount: i16,
+    current_piece: Piece,
+    next_piece: Piece,
+    hold_piece: Option<Piece>,
+    rows_cleared_count: i16,
     score: i32,
-    hasHeldAPiece: bool,
+    has_held_a_piece: bool,
     board: [[Option<PieceColor>; 10]; 20]
 }
 
 impl GameState {
     pub fn new(board: [[Option<PieceColor>; 10]; 20]) -> Self {
         GameState {
-            rowsClearedCount: 0,
+            rows_cleared_count: 0,
             score: 0,
-            hasHeldAPiece: false,
-            currentPiece: Piece::GetPiece(),
-            nextPiece: Piece::GetPiece(),
-            holdPiece: None,
+            has_held_a_piece: false,
+            current_piece: Piece::get_piece(),
+            next_piece: Piece::get_piece(),
+            hold_piece: None,
             board
         }
     }
 
-    pub fn moveDirection(&mut self, direction: GameInput) -> bool {
-        let mut x: usize = self.currentPiece.X;
-        let mut y: usize = self.currentPiece.Y;
+    pub fn move_direction(&mut self, direction: GameInput) -> bool {
+        let mut x: usize = self.current_piece.x;
+        let mut y: usize = self.current_piece.y;
 
         match direction {
             GameInput::Left => x = x - 1,
@@ -65,26 +65,26 @@ impl GameState {
             _ => ()
         }
 
-        if !GameState::CheckCollision(self, x, y) {
-            self.currentPiece.X = x;
-            self.currentPiece.Y = y;
+        if !GameState::check_collision(self, x, y) {
+            self.current_piece.x = x;
+            self.current_piece.y = y;
             return true;
         }
         return false;
     }
 
-    pub fn drop(&mut self, isHoldingDown: bool) {
-        if isHoldingDown {
+    pub fn drop(&mut self, is_holding_down: bool) {
+        if is_holding_down {
             self.score = self.score + 10
         }
 
-        if !self.moveDirection(GameInput::Down) {
+        if !self.move_direction(GameInput::Down) {
             self.after_drop();
         }
     }
 
     pub fn hard_drop(&mut self) -> bool {
-        while self.moveDirection(GameInput::Down) {
+        while self.move_direction(GameInput::Down) {
             self.score = self.score + 10
         }
         self.score = self.score + 10;
@@ -94,50 +94,103 @@ impl GameState {
     }
 
     pub fn after_drop(&mut self) {
-        self.dropPiece();
+        self.drop_piece();
+        self.remove_lines();
+        self.current_piece = self.next_piece;
+        self.next_piece = Piece::get_piece();
+        self.check_collision(self.current_piece.x, self.current_piece.y);
     }
 
-    pub fn hold(&mut self) -> bool {
+    fn remove_lines(&mut self) {
+        let mut n = 0;
+        let mut y = 20;
+        let mut x = 0;
 
-        return true;
+        while y > 0 {
+            let mut is_line_complete = true;
+            while x < 10 {
+                is_line_complete = is_line_complete & !self.board[x][y].is_none();
+                x = x + 1;
+            }
+
+            if is_line_complete {
+                self.remove_line(y);
+                y = y + 1;
+                n = n + 1;
+            }
+
+            y = y - 1;
+        }
     }
 
-    pub fn dropPiece(&mut self) {
+    fn remove_line(&mut self, mut n: usize) {
+        while n >= 0 {
+            let mut x = 0;
+            while x < 10 {
+                self.board[x][n] = if n == 0 { None } else { self.board[x][n - 1] };
+                x = x + 1
+            }
+            n = n - 1;
+        }
+    }
+
+    pub fn drop_piece(&mut self) {
         let mut iterations = 0;
         let mut func = |x: usize, y: usize| {
-            self.board[x][y] = Option::from(self.currentPiece.PieceColor);
+            self.board[x][y] = Option::from(self.current_piece.piece_color);
         };
         while iterations < 16
         {
-            if (self.currentPiece.getRotationState() & (0x8000 >> iterations)) > 0 {
-                func(self.currentPiece.X + (iterations % 4), self.currentPiece.Y + (iterations / 4));
+            if (self.current_piece.get_rotation_state() & (0x8000 >> iterations)) > 0 {
+                func(self.current_piece.x + (iterations % 4), self.current_piece.y + (iterations / 4));
             }
             iterations = iterations + 1;
         }
     }
 
-    pub fn rotate(&mut self, direction: GameInput) -> bool {
-        let newRotationState = match direction {
-            GameInput::RotateLeft => (self.currentPiece.RotationState + 3) % 4,
-            GameInput::RotateRight => (self.currentPiece.RotationState + 1) % 4,
-            _ => self.currentPiece.RotationState
-        };
+    pub fn hold(&mut self) -> bool {
+        if !self.has_held_a_piece {
+            self.has_held_a_piece = true;
 
-        if !GameState::CheckCollision(self, self.currentPiece.X, self.currentPiece.Y) {
-            self.currentPiece.RotationState = newRotationState;
+            if self.hold_piece.is_some() {
+                let temp = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
+                self.hold_piece = Option::from(self.current_piece);
+                self.current_piece = temp;
+            }
+            else {
+                self.hold_piece = Option::from(self.current_piece);
+                self.current_piece = self.next_piece;
+                self.next_piece = Piece::get_piece();
+            }
+            let mut hold_piece_as_some = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
+            hold_piece_as_some.x = 4;
+            hold_piece_as_some.y = 0;
         }
         return true;
     }
 
-    pub fn getDropShadowY(&mut self) -> usize {
-        let mut y: usize = self.currentPiece.Y;
-        while !GameState::CheckCollision(self, self.currentPiece.X, y) {
+    pub fn rotate(&mut self, direction: GameInput) -> bool {
+        let new_rotation_state = match direction {
+            GameInput::RotateLeft => (self.current_piece.rotation_state + 3) % 4,
+            GameInput::RotateRight => (self.current_piece.rotation_state + 1) % 4,
+            _ => self.current_piece.rotation_state
+        };
+
+        if !GameState::check_collision(self, self.current_piece.x, self.current_piece.y) {
+            self.current_piece.rotation_state = new_rotation_state;
+        }
+        return true;
+    }
+
+    pub fn get_drop_shadow_y(&mut self) -> usize {
+        let mut y: usize = self.current_piece.y;
+        while !GameState::check_collision(self, self.current_piece.x, y) {
             y = y + 1;
         }
         return y - 1;
     }
 
-    pub fn CheckCollision(&self, x: usize, y: usize) -> bool {
+    pub fn check_collision(&self, x: usize, y: usize) -> bool {
         let mut b: bool = false;
         let mut iterations = 0;
         let mut func = |x: usize, y: usize| {
@@ -145,7 +198,7 @@ impl GameState {
         };
         while iterations < 16
         {
-            if (self.currentPiece.Rotation[self.currentPiece.RotationState] & (0x8000 >> iterations)) > 0 {
+            if (self.current_piece.rotation[self.current_piece.rotation_state] & (0x8000 >> iterations)) > 0 {
                 func(x + (iterations % 4), y + (iterations / 4));
             }
             iterations = iterations + 1;
@@ -153,7 +206,7 @@ impl GameState {
         return b;
     }
 
-    pub fn applyFunctionToEachBlockInAPiece(rotation: u32, x: usize, y: usize, function: fn(usize, usize)) {
+    pub fn apply_function_to_each_block_in_apiece(rotation: u32, x: usize, y: usize, function: fn(usize, usize)) {
         let mut iterations = 0;
         while iterations < 16
         {
@@ -167,29 +220,29 @@ impl GameState {
 
 #[derive(Copy, Clone)]
 struct Piece {
-    PieceSize: u8,
-    RotationState: usize,
-    X: usize,
-    Y: usize,
-    Rotation: [u32; 4],
-    PieceColor: PieceColor
+    piece_size: u8,
+    rotation_state: usize,
+    x: usize,
+    y: usize,
+    rotation: [u32; 4],
+    piece_color: PieceColor
 }
 
 impl Piece {
-    fn new(size: u8, pieceColor: PieceColor, rotation: [u32; 4]) -> Self {
+    fn new(size: u8, piece_color: PieceColor, rotation: [u32; 4]) -> Self {
         Piece {
-            PieceSize: size,
-            RotationState: 0,
-            X: 4,
-            Y: 0,
-            Rotation: rotation,
-            PieceColor: pieceColor
+            piece_size: size,
+            rotation_state: 0,
+            x: 4,
+            y: 0,
+            rotation,
+            piece_color
         }
     }
 
-    fn getRotationState(&self) -> u32 { return self.Rotation[self.RotationState]; }
+    fn get_rotation_state(&self) -> u32 { return self.rotation[self.rotation_state]; }
 
-    pub fn GetPiece() -> Piece {
+    pub fn get_piece() -> Piece {
         match rand::thread_rng().gen_range(0..7)
         {
             0 => Piece::new(4, PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222]),
@@ -262,14 +315,13 @@ impl event::EventHandler<ggez::GameError> for GameState {
     fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> GameResult {
         if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
             let is_successful_move = match dir {
-                GameInput::Down => self.moveDirection(dir),
-                GameInput::Left => self.moveDirection(dir),
-                GameInput::Right => self.moveDirection(dir),
+                GameInput::Down => self.move_direction(dir),
+                GameInput::Left => self.move_direction(dir),
+                GameInput::Right => self.move_direction(dir),
                 GameInput::RotateRight => self.rotate(dir),
                 GameInput::RotateLeft => self.rotate(dir),
                 GameInput::HardDrop => self.hard_drop(),
                 GameInput::Hold => self.hold(),
-                _ => false
             };
         }
         Ok(())
