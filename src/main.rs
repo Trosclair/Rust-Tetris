@@ -6,10 +6,14 @@ use ggez::input::keyboard::{KeyCode, KeyInput};
 use glam::{const_uvec4, const_vec4};
 use rand::Rng;
 use std;
+use std::process::exit;
+use ggez::graphics::{Canvas, Color};
+use ggez::mint::Vector2;
+use ggez::winit::dpi::Size;
 
 // Here we define the size of our game board in terms of how many grid
 // cells it will take up. We choose to make a 30 x 20 game board.
-const GRID_SIZE: (i16, i16) = (20, 10);
+const GRID_SIZE: (i16, i16) = (10, 20);
 // Now we define the pixel size of each tile, which we make 32x32 pixels.
 const GRID_CELL_SIZE: (i16, i16) = (45, 45);
 
@@ -28,7 +32,8 @@ enum PieceColor {
     Cyan,
     Orange,
     Green,
-    Purple
+    Purple,
+    Black
 }
 
 struct GameState {
@@ -38,11 +43,11 @@ struct GameState {
     rows_cleared_count: i16,
     score: i32,
     has_held_a_piece: bool,
-    board: [[Option<PieceColor>; 10]; 20]
+    board: [[Option<PieceColor>; 20]; 10]
 }
 
 impl GameState {
-    pub fn new(board: [[Option<PieceColor>; 10]; 20]) -> Self {
+    pub fn new(board: [[Option<PieceColor>; 20]; 10]) -> Self {
         GameState {
             rows_cleared_count: 0,
             score: 0,
@@ -61,7 +66,7 @@ impl GameState {
         match direction {
             GameInput::Left => x = x - 1,
             GameInput::Right => x = x + 1,
-            GameInput::Down => y = y - 1,
+            GameInput::Down => y = y + 1,
             _ => ()
         }
 
@@ -103,11 +108,11 @@ impl GameState {
 
     fn remove_lines(&mut self) {
         let mut n = 0;
-        let mut y = 20;
-        let mut x = 0;
+        let mut y = 19;
 
         while y > 0 {
             let mut is_line_complete = true;
+            let mut x = 0;
             while x < 10 {
                 is_line_complete = is_line_complete & !self.board[x][y].is_none();
                 x = x + 1;
@@ -124,11 +129,15 @@ impl GameState {
     }
 
     fn remove_line(&mut self, mut n: usize) {
-        while n >= 0 {
+
+        loop {
             let mut x = 0;
             while x < 10 {
                 self.board[x][n] = if n == 0 { None } else { self.board[x][n - 1] };
                 x = x + 1
+            }
+            if n == 0 {
+                break;
             }
             n = n - 1;
         }
@@ -194,7 +203,12 @@ impl GameState {
         let mut b: bool = false;
         let mut iterations = 0;
         let mut func = |x: usize, y: usize| {
-            b = b | ((x < 0) || (x >= 10) || (y < 0) || (y >= 20) || (!self.board[x][y].is_none()));
+            if (x < 0) || (x >= 10) || (y < 0) || (y >= 20) {
+                b = true;
+            }
+            else {
+                b = !self.board[x][y].is_none();
+            }
         };
         while iterations < 16
         {
@@ -212,6 +226,63 @@ impl GameState {
         {
             if (rotation & (0x8000 >> iterations)) > 0 {
                 function(x + (iterations % 4), y + (iterations / 4));
+            }
+            iterations = iterations + 1;
+        }
+    }
+
+    pub fn draw_board(&self, mut canvas: &mut Canvas) {
+        let rect = graphics::Rect::new(0.0,0.0,450.0,900.0);
+        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(Color::BLACK));
+
+
+        let mut y: usize = 0;
+
+        while y < 20 {
+            let mut x: usize = 0;
+            while x < 10 {
+                let piece_color = match self.board[x][y] { None => PieceColor::Black, Some(temp) => temp};
+                let print_color = match piece_color {
+                    PieceColor::Red => Color::RED,
+                    PieceColor::Purple => Color::MAGENTA,
+                    PieceColor::Green => Color::GREEN,
+                    PieceColor::Blue => Color::BLUE,
+                    PieceColor::Cyan => Color::CYAN,
+                    PieceColor::Orange => Color::new(255.0, 165.0, 0.0, 0.0),
+                    PieceColor::Yellow => Color::YELLOW,
+                    PieceColor::Black => Color::BLACK
+                };
+                let rect = graphics::Rect::new((x as f32) * 45.0, (y as f32) * 45.0,45.0,45.0);
+                canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+
+        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
+    }
+
+    fn draw_piece(&self, canvas: &mut Canvas, rotation: u32, x: usize, y: usize, color: PieceColor) {
+        let mut iterations = 0;
+        let mut func = |x: usize, y: usize| {
+
+            let print_color = match color {
+                PieceColor::Red => Color::RED,
+                PieceColor::Purple => Color::MAGENTA,
+                PieceColor::Green => Color::GREEN,
+                PieceColor::Blue => Color::BLUE,
+                PieceColor::Cyan => Color::CYAN,
+                PieceColor::Orange => Color::new(255.0,165.0, 0.0, 0.0),
+                PieceColor::Yellow => Color::YELLOW,
+                PieceColor::Black => Color::BLACK
+            };
+            let rect = graphics::Rect::new((x as f32) * 45.0, (y as f32) * 45.0,45.0,45.0);
+            canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
+        };
+        while iterations < 16
+        {
+            if (rotation & (0x8000 >> iterations)) > 0 {
+                func(x + (iterations % 4), y + (iterations / 4));
             }
             iterations = iterations + 1;
         }
@@ -309,6 +380,9 @@ impl event::EventHandler<ggez::GameError> for GameState {
             graphics::CanvasLoadOp::Clear([0.1, 0.2, 0.3, 1.0].into()),
         );
 
+        self.draw_board(&mut canvas);
+
+        canvas.finish(ctx)?;
         Ok(())
     }
 
@@ -348,7 +422,7 @@ pub fn main() -> GameResult {
         // "Failed to build ggez context"
         .build()?;
 
-    let mut board: [[Option<PieceColor>; 10]; 20] = [[None; 10]; 20];
+    let mut board: [[Option<PieceColor>; 20]; 10] = [[None; 20]; 10];
     let state = GameState::new(board);
     event::run(ctx, events_loop, state)
 }
