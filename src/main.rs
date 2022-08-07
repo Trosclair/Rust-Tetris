@@ -63,11 +63,14 @@ impl GameState {
         let mut x: usize = self.current_piece.x;
         let mut y: usize = self.current_piece.y;
 
-        match direction {
-            GameInput::Left => x = x - 1,
-            GameInput::Right => x = x + 1,
-            GameInput::Down => y = y + 1,
-            _ => ()
+        if direction == GameInput::Left && x > 0 {
+            x = x - 1;
+        }
+        else if direction == GameInput::Right && x < 9 {
+            x = x + 1;
+        }
+        else if direction == GameInput::Down && y < 19 {
+            y = y + 1;
         }
 
         if !GameState::check_collision(self, x, y) {
@@ -248,7 +251,7 @@ impl GameState {
                     PieceColor::Green => Color::GREEN,
                     PieceColor::Blue => Color::BLUE,
                     PieceColor::Cyan => Color::CYAN,
-                    PieceColor::Orange => Color::new(255.0, 165.0, 0.0, 0.0),
+                    PieceColor::Orange => Color::new(255.0, 140.0, 50.0, 100.0),
                     PieceColor::Yellow => Color::YELLOW,
                     PieceColor::Black => Color::BLACK
                 };
@@ -272,7 +275,7 @@ impl GameState {
                 PieceColor::Green => Color::GREEN,
                 PieceColor::Blue => Color::BLUE,
                 PieceColor::Cyan => Color::CYAN,
-                PieceColor::Orange => Color::new(255.0,165.0, 0.0, 0.0),
+                PieceColor::Orange => Color::new(255.0,140.0, 50.0, 100.0),
                 PieceColor::Yellow => Color::YELLOW,
                 PieceColor::Black => Color::BLACK
             };
