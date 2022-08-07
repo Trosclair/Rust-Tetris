@@ -20,8 +20,8 @@ const GRID_CELL_SIZE: (i16, i16) = (30, 30);
 // Next we define how large we want our actual window to be by multiplying
 // the components of our grid size by its corresponding pixel size.
 const SCREEN_SIZE: (f32, f32) = (
-    GRID_SIZE.0 as f32 * GRID_CELL_SIZE.0 as f32,
-    GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1 as f32,
+    600.0,
+    900.0,
 );
 
 #[derive(Copy, Clone)]
@@ -33,7 +33,8 @@ enum PieceColor {
     Orange,
     Green,
     Purple,
-    Black
+    Black,
+    White
 }
 
 struct GameState {
@@ -81,7 +82,7 @@ impl GameState {
         return false;
     }
 
-    pub fn drop(&mut self, is_holding_down: bool) {
+    pub fn move_down(&mut self, is_holding_down: bool) -> bool {
         if is_holding_down {
             self.score = self.score + 10
         }
@@ -89,6 +90,7 @@ impl GameState {
         if !self.move_direction(GameInput::Down) {
             self.after_drop();
         }
+        return true;
     }
 
     pub fn hard_drop(&mut self) -> bool {
@@ -196,7 +198,7 @@ impl GameState {
         return true;
     }
 
-    pub fn get_drop_shadow_y(&mut self) -> i8 {
+    pub fn get_drop_shadow_y(&self) -> i8 {
         let mut y: i8 = self.current_piece.y;
         while !GameState::check_collision(self, self.current_piece.x, y) {
             y = y + 1;
@@ -238,9 +240,9 @@ impl GameState {
     }
 
     pub fn draw_board(&self, mut canvas: &mut Canvas) {
-        let rect = graphics::Rect::new(0.0,0.0,450.0,900.0);
-        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(Color::BLACK));
-
+        let rect = graphics::Rect::new(150.0,150.0,300.0,600.0);
+        let color = Color::new(0.5,0.5, 0.5, 1.0);
+        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(color));
 
         let mut y: i8 = 0;
 
@@ -254,17 +256,19 @@ impl GameState {
                     PieceColor::Green => Color::GREEN,
                     PieceColor::Blue => Color::BLUE,
                     PieceColor::Cyan => Color::CYAN,
-                    PieceColor::Orange => Color::new(255.0, 140.0, 50.0, 100.0),
+                    PieceColor::Orange => Color::new(1.0,0.5, 0.2, 1.0),
                     PieceColor::Yellow => Color::YELLOW,
-                    PieceColor::Black => Color::BLACK
+                    PieceColor::Black => Color::BLACK,
+                    PieceColor::White => Color::WHITE
                 };
-                let rect = graphics::Rect::new((x as f32) * 30.0, (y as f32) * 30.0,30.0,30.0);
+                let rect = graphics::Rect::new(((x as f32) * 30.0) + 150.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
                 canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
                 x = x + 1;
             }
             y = y + 1;
         }
 
+        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.get_drop_shadow_y(), PieceColor::White);
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
     }
 
@@ -278,11 +282,12 @@ impl GameState {
                 PieceColor::Green => Color::GREEN,
                 PieceColor::Blue => Color::BLUE,
                 PieceColor::Cyan => Color::CYAN,
-                PieceColor::Orange => Color::new(255.0,140.0, 50.0, 100.0),
+                PieceColor::Orange => Color::new(1.0,0.5, 0.2, 100.0),
                 PieceColor::Yellow => Color::YELLOW,
-                PieceColor::Black => Color::BLACK
+                PieceColor::Black => Color::BLACK,
+                PieceColor::White => Color::WHITE
             };
-            let rect = graphics::Rect::new((x as f32) * 30.0, (y as f32) * 30.0,30.0,30.0);
+            let rect = graphics::Rect::new(((x as f32) * 30.0) + 150.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
         };
         while iterations < 16
@@ -395,7 +400,7 @@ impl event::EventHandler<ggez::GameError> for GameState {
     fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> GameResult {
         if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
             let is_successful_move = match dir {
-                GameInput::Down => self.move_direction(dir),
+                GameInput::Down => self.move_down(true),
                 GameInput::Left => self.move_direction(dir),
                 GameInput::Right => self.move_direction(dir),
                 GameInput::RotateRight => self.rotate(dir),
