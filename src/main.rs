@@ -15,7 +15,7 @@ use ggez::winit::dpi::Size;
 // cells it will take up. We choose to make a 30 x 20 game board.
 const GRID_SIZE: (i16, i16) = (10, 20);
 // Now we define the pixel size of each tile, which we make 32x32 pixels.
-const GRID_CELL_SIZE: (i16, i16) = (45, 45);
+const GRID_CELL_SIZE: (i16, i16) = (30, 30);
 
 // Next we define how large we want our actual window to be by multiplying
 // the components of our grid size by its corresponding pixel size.
@@ -60,16 +60,16 @@ impl GameState {
     }
 
     pub fn move_direction(&mut self, direction: GameInput) -> bool {
-        let mut x: usize = self.current_piece.x;
-        let mut y: usize = self.current_piece.y;
+        let mut x: i8 = self.current_piece.x;
+        let mut y: i8 = self.current_piece.y;
 
-        if direction == GameInput::Left && x > 0 {
+        if direction == GameInput::Left {
             x = x - 1;
         }
-        else if direction == GameInput::Right && x < 9 {
+        else if direction == GameInput::Right {
             x = x + 1;
         }
-        else if direction == GameInput::Down && y < 19 {
+        else if direction == GameInput::Down {
             y = y + 1;
         }
 
@@ -106,6 +106,7 @@ impl GameState {
         self.remove_lines();
         self.current_piece = self.next_piece;
         self.next_piece = Piece::get_piece();
+        self.has_held_a_piece = false;
         self.check_collision(self.current_piece.x, self.current_piece.y);
     }
 
@@ -122,7 +123,7 @@ impl GameState {
             }
 
             if is_line_complete {
-                self.remove_line(y);
+                self.remove_line(y as i8);
                 y = y + 1;
                 n = n + 1;
             }
@@ -131,12 +132,12 @@ impl GameState {
         }
     }
 
-    fn remove_line(&mut self, mut n: usize) {
+    fn remove_line(&mut self, mut n: i8) {
 
         loop {
             let mut x = 0;
             while x < 10 {
-                self.board[x][n] = if n == 0 { None } else { self.board[x][n - 1] };
+                self.board[x as usize][n as usize] = if n == 0 { None } else { self.board[x as usize][(n - 1) as usize] };
                 x = x + 1
             }
             if n == 0 {
@@ -148,8 +149,8 @@ impl GameState {
 
     pub fn drop_piece(&mut self) {
         let mut iterations = 0;
-        let mut func = |x: usize, y: usize| {
-            self.board[x][y] = Option::from(self.current_piece.piece_color);
+        let mut func = |x: i8, y: i8| {
+            self.board[x as usize][y as usize] = Option::from(self.current_piece.piece_color);
         };
         while iterations < 16
         {
@@ -182,40 +183,42 @@ impl GameState {
     }
 
     pub fn rotate(&mut self, direction: GameInput) -> bool {
-        let new_rotation_state = match direction {
+        let old_rotation_state = self.current_piece.rotation_state;
+        self.current_piece.rotation_state = match direction {
             GameInput::RotateLeft => (self.current_piece.rotation_state + 3) % 4,
             GameInput::RotateRight => (self.current_piece.rotation_state + 1) % 4,
             _ => self.current_piece.rotation_state
         };
 
-        if !GameState::check_collision(self, self.current_piece.x, self.current_piece.y) {
-            self.current_piece.rotation_state = new_rotation_state;
+        if GameState::check_collision(self, self.current_piece.x, self.current_piece.y) {
+            self.current_piece.rotation_state = old_rotation_state;
         }
         return true;
     }
 
-    pub fn get_drop_shadow_y(&mut self) -> usize {
-        let mut y: usize = self.current_piece.y;
+    pub fn get_drop_shadow_y(&mut self) -> i8 {
+        let mut y: i8 = self.current_piece.y;
         while !GameState::check_collision(self, self.current_piece.x, y) {
             y = y + 1;
         }
         return y - 1;
     }
 
-    pub fn check_collision(&self, x: usize, y: usize) -> bool {
+    pub fn check_collision(&self, x: i8, y: i8) -> bool {
         let mut b: bool = false;
         let mut iterations = 0;
-        let mut func = |x: usize, y: usize| {
+        let mut func = |x: i8, y: i8| {
+
             if (x < 0) || (x >= 10) || (y < 0) || (y >= 20) {
-                b = true;
+                b = b | true;
             }
             else {
-                b = !self.board[x][y].is_none();
+                b = b | !self.board[x as usize][y as usize].is_none();
             }
         };
         while iterations < 16
         {
-            if (self.current_piece.rotation[self.current_piece.rotation_state] & (0x8000 >> iterations)) > 0 {
+            if (self.current_piece.rotation[self.current_piece.rotation_state as usize] & (0x8000 >> iterations)) > 0 {
                 func(x + (iterations % 4), y + (iterations / 4));
             }
             iterations = iterations + 1;
@@ -223,7 +226,7 @@ impl GameState {
         return b;
     }
 
-    pub fn apply_function_to_each_block_in_apiece(rotation: u32, x: usize, y: usize, function: fn(usize, usize)) {
+    pub fn apply_function_to_each_block_in_apiece(rotation: u32, x: i8, y: i8, function: fn(i8, i8)) {
         let mut iterations = 0;
         while iterations < 16
         {
@@ -239,12 +242,12 @@ impl GameState {
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(Color::BLACK));
 
 
-        let mut y: usize = 0;
+        let mut y: i8 = 0;
 
         while y < 20 {
-            let mut x: usize = 0;
+            let mut x: i8 = 0;
             while x < 10 {
-                let piece_color = match self.board[x][y] { None => PieceColor::Black, Some(temp) => temp};
+                let piece_color = match self.board[x as usize][y as usize] { None => PieceColor::Black, Some(temp) => temp};
                 let print_color = match piece_color {
                     PieceColor::Red => Color::RED,
                     PieceColor::Purple => Color::MAGENTA,
@@ -255,19 +258,19 @@ impl GameState {
                     PieceColor::Yellow => Color::YELLOW,
                     PieceColor::Black => Color::BLACK
                 };
-                let rect = graphics::Rect::new((x as f32) * 45.0, (y as f32) * 45.0,45.0,45.0);
+                let rect = graphics::Rect::new((x as f32) * 30.0, (y as f32) * 30.0,30.0,30.0);
                 canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
                 x = x + 1;
             }
             y = y + 1;
         }
 
-        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
+        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
     }
 
-    fn draw_piece(&self, canvas: &mut Canvas, rotation: u32, x: usize, y: usize, color: PieceColor) {
+    fn draw_piece(&self, canvas: &mut Canvas, rotation: u32, x: i8, y: i8, color: PieceColor) {
         let mut iterations = 0;
-        let mut func = |x: usize, y: usize| {
+        let mut func = |x: i8, y: i8| {
 
             let print_color = match color {
                 PieceColor::Red => Color::RED,
@@ -279,7 +282,7 @@ impl GameState {
                 PieceColor::Yellow => Color::YELLOW,
                 PieceColor::Black => Color::BLACK
             };
-            let rect = graphics::Rect::new((x as f32) * 45.0, (y as f32) * 45.0,45.0,45.0);
+            let rect = graphics::Rect::new((x as f32) * 30.0, (y as f32) * 30.0,30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
         };
         while iterations < 16
@@ -295,9 +298,9 @@ impl GameState {
 #[derive(Copy, Clone)]
 struct Piece {
     piece_size: u8,
-    rotation_state: usize,
-    x: usize,
-    y: usize,
+    rotation_state: i8,
+    x: i8,
+    y: i8,
     rotation: [u32; 4],
     piece_color: PieceColor
 }
@@ -314,7 +317,7 @@ impl Piece {
         }
     }
 
-    fn get_rotation_state(&self) -> u32 { return self.rotation[self.rotation_state]; }
+    fn get_rotation_state(&self) -> u32 { return self.rotation[self.rotation_state as usize]; }
 
     pub fn get_piece() -> Piece {
         match rand::thread_rng().gen_range(0..7)
