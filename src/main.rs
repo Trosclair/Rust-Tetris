@@ -1,23 +1,9 @@
-use ggez::{event, graphics, Context, GameResult, GameError};
-use std::{env, path};
-use ggez::event::{Axis, Button, ErrorOrigin, GamepadId, MouseButton};
-use ggez::event::winit_event::TouchPhase;
+use ggez::{event, graphics, Context, GameResult};
 use ggez::input::keyboard::{KeyCode, KeyInput};
-use glam::{const_uvec4, const_vec4};
 use rand::Rng;
-use std;
-use std::process::exit;
 use ggez::graphics::{Canvas, Color};
-use ggez::mint::Vector2;
-use ggez::winit::dpi::Size;
 extern crate stopwatch;
 use stopwatch::{Stopwatch};
-
-// Here we define the size of our game board in terms of how many grid
-// cells it will take up. We choose to make a 30 x 20 game board.
-const GRID_SIZE: (i16, i16) = (10, 20);
-// Now we define the pixel size of each tile, which we make 32x32 pixels.
-const GRID_CELL_SIZE: (i16, i16) = (30, 30);
 
 // Next we define how large we want our actual window to be by multiplying
 // the components of our grid size by its corresponding pixel size.
@@ -245,17 +231,6 @@ impl GameState {
         return b;
     }
 
-    pub fn apply_function_to_each_block_in_apiece(rotation: u32, x: i8, y: i8, function: fn(i8, i8)) {
-        let mut iterations = 0;
-        while iterations < 16
-        {
-            if (rotation & (0x8000 >> iterations)) > 0 {
-                function(x + (iterations % 4), y + (iterations / 4));
-            }
-            iterations = iterations + 1;
-        }
-    }
-
     pub fn draw_board(&self, mut canvas: &mut Canvas) {
 
         let mut y: i8 = 0;
@@ -275,7 +250,7 @@ impl GameState {
                     PieceColor::Black => Color::BLACK,
                     PieceColor::Gray => Color::new(0.5,0.5, 0.5, 1.0)
                 };
-                let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, ((y as f32) * 30.0),30.0,30.0);
+                let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, (y as f32) * 30.0,30.0,30.0);
                 canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
                 x = x + 1;
             }
@@ -284,7 +259,6 @@ impl GameState {
 
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.get_drop_shadow_y(), PieceColor::Gray);
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
-
 
         canvas.draw(graphics::Text::new("NEXT:").set_scale(24.), glam::vec2(410.0, 0.0));
 
@@ -345,7 +319,7 @@ impl GameState {
                 PieceColor::Black => Color::BLACK,
                 PieceColor::Gray => Color::new(0.5,0.5, 0.5, 1.0)
             };
-            let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, ((y as f32) * 30.0),30.0,30.0);
+            let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, (y as f32) * 30.0,30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
         };
         while iterations < 16
@@ -360,7 +334,6 @@ impl GameState {
 
 #[derive(Copy, Clone)]
 struct Piece {
-    piece_size: u8,
     rotation_state: i8,
     x: i8,
     y: i8,
@@ -369,9 +342,8 @@ struct Piece {
 }
 
 impl Piece {
-    fn new(size: u8, piece_color: PieceColor, rotation: [u32; 4]) -> Self {
+    fn new(piece_color: PieceColor, rotation: [u32; 4]) -> Self {
         Piece {
-            piece_size: size,
             rotation_state: 0,
             x: 4,
             y: 0,
@@ -385,14 +357,14 @@ impl Piece {
     pub fn get_piece() -> Piece {
         match rand::thread_rng().gen_range(0..7)
         {
-            0 => Piece::new(4, PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222]),
-            1 => Piece::new(3, PieceColor::Blue, [0x44C0, 0x8E00, 0x6440, 0x0E20]),
-            2 => Piece::new(3, PieceColor::Orange, [0x4460, 0x0E80, 0xC440, 0x2E00]),
-            3 => Piece::new(2, PieceColor::Yellow, [0xCC00, 0xCC00, 0xCC00, 0xCC00]),
-            4 => Piece::new(3, PieceColor::Green, [0x06C0, 0x4620, 0x06C0, 0x4620]),
-            5 => Piece::new(3, PieceColor::Purple, [0x0E40, 0x4C40, 0x4E00, 0x4640]),
-            6 => Piece::new(3, PieceColor::Red, [0x0C60, 0x2640, 0x0C60, 0x2640]),
-            _ => Piece::new(4, PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222])
+            0 => Piece::new(PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222]),
+            1 => Piece::new(PieceColor::Blue, [0x44C0, 0x8E00, 0x6440, 0x0E20]),
+            2 => Piece::new(PieceColor::Orange, [0x4460, 0x0E80, 0xC440, 0x2E00]),
+            3 => Piece::new(PieceColor::Yellow, [0xCC00, 0xCC00, 0xCC00, 0xCC00]),
+            4 => Piece::new(PieceColor::Green, [0x06C0, 0x4620, 0x06C0, 0x4620]),
+            5 => Piece::new(PieceColor::Purple, [0x0E40, 0x4C40, 0x4E00, 0x4640]),
+            6 => Piece::new(PieceColor::Red, [0x0C60, 0x2640, 0x0C60, 0x2640]),
+            _ => Piece::new(PieceColor::Cyan, [0x00F0, 0x2222, 0x00F0, 0x2222])
         }
     }
 }
@@ -520,7 +492,7 @@ impl event::EventHandler<ggez::GameError> for GameState {
 pub fn main() -> GameResult {
     // We add the CARGO_MANIFEST_DIR/resources to the resource paths
     // so that ggez will look in our cargo project directory for files.
-    let (mut ctx, events_loop) = ggez::ContextBuilder::new("Tetris", "Payton Trosclair")
+    let (ctx, events_loop) = ggez::ContextBuilder::new("Tetris", "Payton Trosclair")
         // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Tetris!"))
         // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
