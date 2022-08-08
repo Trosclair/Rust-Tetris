@@ -23,7 +23,7 @@ enum PieceColor {
     Green,  /// S
     Purple, /// T
     Black,  /// None
-    Gray    /// shadow
+    Gray
 }
 
 /// Main state of the game.
@@ -36,17 +36,23 @@ struct GameState {
     hold_piece: Option<Piece>,
     /// Lines cleared during play.
     lines_cleared_count: i16,
-    /// score accumulated throughout play.
+    /// Score accumulated throughout play.
     score: i32,
-    /// has the player held the piece since the current piece has been dropped.
+    /// Has the player held the piece since the current piece has been dropped.
     has_held_a_piece: bool,
-    /// global timer used to measure time between auto-drop.
+    /// Global timer used to measure time between auto-drop.
     global_timer: Stopwatch,
-    /// last auto drop intermediate value.
+    /// Last auto drop intermediate value.
     last_piece_dropped_time: i64,
-    /// is the game currently being played.
+    /// Time since last FPS poll.
+    last_fps_poll_time: i64,
+    /// FPS Counter.
+    fps_count: i64,
+    /// Displayed FPS Counter.
+    display_fps: i64,
+    /// Is the game currently being played.
     is_playing: bool,
-    /// board where pieces are placed/represented.
+    /// Board where pieces are placed/represented.
     board: [[Option<PieceColor>; 20]; 10]
 }
 
@@ -63,6 +69,9 @@ impl GameState {
             hold_piece: None,
             global_timer: Stopwatch::start_new(),
             last_piece_dropped_time: 0,
+            last_fps_poll_time: 0,
+            fps_count: 0,
+            display_fps: 0,
             is_playing: false,
             board: [[None; 20]; 10]
         }
@@ -293,7 +302,7 @@ impl GameState {
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
         self.draw_next_box_and_hold_box(&mut canvas, self.next_piece.rotation[0], 410.0, 20.0, self.next_piece.piece_color);
 
-        canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(460.0, 150.0));
+        canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(410.0, 150.0));
 
         let next_box = graphics::Rect::new(410.0, 170.0, 120.0, 120.0);
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
@@ -450,9 +459,17 @@ impl GameInput {
 // that you can override if you wish, but the defaults are fine.
 impl event::EventHandler<ggez::GameError> for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if self.is_playing && self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.lines_cleared_count as i64)))) {
-            self.move_down(false);
-            self.last_piece_dropped_time = self.global_timer.elapsed_ms();
+        if self.is_playing {
+            if self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.lines_cleared_count as i64)))) {
+                self.move_down(false);
+                self.last_piece_dropped_time = self.global_timer.elapsed_ms();
+            }
+            if self.global_timer.elapsed_ms() > (self.last_fps_poll_time + 1000){
+                self.display_fps = self.fps_count;
+                self.fps_count = 0;
+                self.last_fps_poll_time = self.global_timer.elapsed_ms();
+            }
+            self.fps_count = self.fps_count + 1;
         }
 
         Ok(())
@@ -471,6 +488,9 @@ impl event::EventHandler<ggez::GameError> for GameState {
             canvas.draw(graphics::Text::new(self.score.to_string()).set_scale(24.), glam::vec2(0.0, 20.0));
             canvas.draw(graphics::Text::new("LINES:").set_scale(24.), glam::vec2(0.0, 60.0));
             canvas.draw(graphics::Text::new(self.lines_cleared_count.to_string()).set_scale(24.), glam::vec2(0.0, 80.0));
+            canvas.draw(graphics::Text::new("FPS:").set_scale(24.), glam::vec2(0.0, 120.0));
+            canvas.draw(graphics::Text::new(self.display_fps.to_string()).set_scale(24.), glam::vec2(0.0, 140.0));
+
         }
         else {
             canvas.draw(graphics::Text::new("Press 'Space' to Start!").set_scale(40.0), glam::vec2(30.0,150.0));
@@ -511,6 +531,8 @@ impl event::EventHandler<ggez::GameError> for GameState {
                     self.next_piece = Piece::get_piece();
                     self.current_piece = Piece::get_piece();
                     self.last_piece_dropped_time = self.global_timer.elapsed_ms();
+                    self.last_fps_poll_time = self.global_timer.elapsed_ms();
+                    self.fps_count = 0;
                     self.is_playing = true;
                 }
             }
