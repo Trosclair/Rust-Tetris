@@ -11,3 +11,4 @@ ggez = { version = "0.8.0-rc0" }
 glam = { version = "0.20", features = ["mint"] }
 rand = "0.8"
 stopwatch = "0.0.7"
+winapi = {version = "0.3", features = ["wincon", "winuser"]}

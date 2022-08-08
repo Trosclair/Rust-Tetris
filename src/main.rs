@@ -9,39 +9,53 @@ use stopwatch::{Stopwatch};
 // the components of our grid size by its corresponding pixel size.
 const SCREEN_SIZE: (f32, f32) = (
     540.0,
-    600.0,
+    610.0,
 );
 
+/// Different colors a piece can be.
 #[derive(Copy, Clone)]
 enum PieceColor {
-    Red,
-    Yellow,
-    Blue,
-    Cyan,
-    Orange,
-    Green,
-    Purple,
-    Black,
-    Gray
+    Red,    /// Z
+    Yellow, /// U
+    Blue,   /// J
+    Cyan,   /// I
+    Orange, /// L
+    Green,  /// S
+    Purple, /// T
+    Black,  /// None
+    Gray    /// shadow
 }
 
+/// Main state of the game.
 struct GameState {
+    /// Current piece being manipulated on the board.
     current_piece: Piece,
+    /// Next piece that will be used after the current piece is fully dropped.
     next_piece: Piece,
+    /// Held piece that can be swapped out for during play.
     hold_piece: Option<Piece>,
-    rows_cleared_count: i16,
+    /// Lines cleared during play.
+    lines_cleared_count: i16,
+    /// score accumulated throughout play.
     score: i32,
+    /// has the player held the piece since the current piece has been dropped.
     has_held_a_piece: bool,
+    /// global timer used to measure time between auto-drop.
     global_timer: Stopwatch,
+    /// last auto drop intermediate value.
     last_piece_dropped_time: i64,
+    /// is the game currently being played.
     is_playing: bool,
+    /// board where pieces are placed/represented.
     board: [[Option<PieceColor>; 20]; 10]
 }
 
+/// Main state of the game.
 impl GameState {
+    /// Constructor for the GameState struct.
     pub fn new() -> Self {
         GameState {
-            rows_cleared_count: 0,
+            lines_cleared_count: 0,
             score: 0,
             has_held_a_piece: false,
             current_piece: Piece::get_piece(),
@@ -54,6 +68,7 @@ impl GameState {
         }
     }
 
+    /// Move a piece left, right or down one block.
     pub fn move_direction(&mut self, direction: GameInput) -> bool {
         let mut x: i8 = self.current_piece.x;
         let mut y: i8 = self.current_piece.y;
@@ -76,28 +91,31 @@ impl GameState {
         return false;
     }
 
+    /// Move the piece down one block.
     pub fn move_down(&mut self, is_holding_down: bool) -> bool {
         if is_holding_down {
             self.score = self.score + 10
         }
 
         if !self.move_direction(GameInput::Down) {
-            self.after_drop();
+            self.after_drop_collision();
         }
         return true;
     }
 
+    /// Drop a piece straight down until collision and add score for each block passed.
     pub fn hard_drop(&mut self) -> bool {
         while self.move_direction(GameInput::Down) {
             self.score = self.score + 10
         }
         self.score = self.score + 10;
-        self.after_drop();
+        self.after_drop_collision();
 
         return true;
     }
 
-    pub fn after_drop(&mut self) {
+    /// Handle the current piece after a collision occurs from being dropped.
+    pub fn after_drop_collision(&mut self) {
         self.commit_piece_to_board();
         self.remove_lines();
         self.current_piece = self.next_piece;
@@ -108,6 +126,7 @@ impl GameState {
         }
     }
 
+    /// Calculate what lines need removed and add score/remove lines accordingly.
     fn remove_lines(&mut self) {
         let mut n = 0;
         let mut y = 19;
@@ -130,13 +149,13 @@ impl GameState {
         }
 
         if n > 0 {
-            self.rows_cleared_count = self.rows_cleared_count + n;
+            self.lines_cleared_count = self.lines_cleared_count + n;
             self.score = self.score + ((i16::pow(n, 2) * 100) as i32);
         }
     }
 
+    /// Remove given line and shift all the lines 'above' down.
     fn remove_line(&mut self, mut n: i8) {
-
         loop {
             let mut x = 0;
             while x < 10 {
@@ -150,6 +169,7 @@ impl GameState {
         }
     }
 
+    /// After collision when being dropped set the positions on the board to the current piece.
     pub fn commit_piece_to_board(&mut self) {
         let mut iterations = 0;
         let mut func = |x: i8, y: i8| {
@@ -164,6 +184,7 @@ impl GameState {
         }
     }
 
+    /// Set current piece as the hold piece and swap out a new piece if there isn't one in the current hold.
     pub fn hold(&mut self) -> bool {
         if !self.has_held_a_piece {
             self.has_held_a_piece = true;
@@ -187,6 +208,7 @@ impl GameState {
         return true;
     }
 
+    /// Rotates the given piece if there is no collision.
     pub fn rotate(&mut self, direction: GameInput) -> bool {
         let old_rotation_state = self.current_piece.rotation_state;
         self.current_piece.rotation_state = match direction {
@@ -201,6 +223,7 @@ impl GameState {
         return true;
     }
 
+    /// Calculates the y position of the drop shadow.
     pub fn get_drop_shadow_y(&self) -> i8 {
         let mut y: i8 = self.current_piece.y;
         while !GameState::check_collision(self, self.current_piece.x, y) {
@@ -209,6 +232,7 @@ impl GameState {
         return y - 1;
     }
 
+    /// Checks if the current piece collides with another block given a different x/y value.
     pub fn check_collision(&self, x: i8, y: i8) -> bool {
         let mut b: bool = false;
         let mut iterations = 0;
@@ -231,6 +255,9 @@ impl GameState {
         return b;
     }
 
+    /// Draws the board to the canvas.
+    /// Also draws the current piece, the current piece's shadow, and
+    /// the hold/next boxes.
     pub fn draw_board(&self, mut canvas: &mut Canvas) {
 
         let mut y: i8 = 0;
@@ -264,7 +291,7 @@ impl GameState {
 
         let next_box = graphics::Rect::new(410.0, 20.0, 120.0, 120.0);
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
-        self.draw_next_box(&mut canvas, self.next_piece.rotation[0], 410.0, 20.0, self.next_piece.piece_color);
+        self.draw_next_box_and_hold_box(&mut canvas, self.next_piece.rotation[0], 410.0, 20.0, self.next_piece.piece_color);
 
         canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(460.0, 150.0));
 
@@ -273,11 +300,12 @@ impl GameState {
 
         if self.hold_piece.is_some() {
             let hold_piece = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
-            self.draw_next_box(&mut canvas, hold_piece.rotation[0], 410.0, 170.0, hold_piece.piece_color);
+            self.draw_next_box_and_hold_box(&mut canvas, hold_piece.rotation[0], 410.0, 170.0, hold_piece.piece_color);
         }
     }
 
-    fn draw_next_box(&self, canvas: &mut Canvas, rotation: u32, x: f32, y: f32, color: PieceColor) {
+    /// Draws the a piece in the next box or the hold box based on the location given.
+    fn draw_next_box_and_hold_box(&self, canvas: &mut Canvas, rotation: u32, x: f32, y: f32, color: PieceColor) {
         let mut iterations = 0;
         let mut func = |x: f32, y: f32| {
 
@@ -304,6 +332,7 @@ impl GameState {
         }
     }
 
+    /// Draws given piece to the board.
     fn draw_piece(&self, canvas: &mut Canvas, rotation: u32, x: i8, y: i8, color: PieceColor) {
         let mut iterations = 0;
         let mut func = |x: i8, y: i8| {
@@ -332,15 +361,22 @@ impl GameState {
     }
 }
 
+/// Piece struct.
 #[derive(Copy, Clone)]
 struct Piece {
+    /// Current Rotate this piece is in.
     rotation_state: i8,
+    /// X coordinate of the piece with respect to the board.
     x: i8,
+    /// Y coordinate of the piece with respect to the board.
     y: i8,
+    /// Array of the possible rotations of the piece.
     rotation: [u32; 4],
+    /// Piece color when represented on the board.
     piece_color: PieceColor
 }
 
+/// Tetris piece implementation.
 impl Piece {
     fn new(piece_color: PieceColor, rotation: [u32; 4]) -> Self {
         Piece {
@@ -352,8 +388,10 @@ impl Piece {
         }
     }
 
+    /// Helper function to grab the current rotation the piece is on.
     fn get_rotation_state(&self) -> u32 { return self.rotation[self.rotation_state as usize]; }
 
+    /// static function that constructs and returns a random tetris piece.
     pub fn get_piece() -> Piece {
         match rand::thread_rng().gen_range(0..7)
         {
@@ -370,7 +408,7 @@ impl Piece {
 }
 
 /// Next we create an enum that will represent all the possible
-/// directions that our snake could move.
+/// inputs our piece needs to handle
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GameInput {
     Down,
@@ -385,11 +423,11 @@ enum GameInput {
 
 impl GameInput {
     /// We also create a helper function that will let us convert between a
-    /// `ggez` `Keycode` and the `Direction` that it represents. Of course,
+    /// `ggez` `Keycode` and the `GameInput` that it represents. Of course,
     /// not every keycode represents a direction, so we return `None` if this
     /// is the case.
     pub fn from_keycode(key: KeyCode) -> Option<GameInput> {
-        match key {
+        return match key {
             KeyCode::D => Some(GameInput::Right),
             KeyCode::A => Some(GameInput::Left),
             KeyCode::S => Some(GameInput::Down),
@@ -412,7 +450,7 @@ impl GameInput {
 // that you can override if you wish, but the defaults are fine.
 impl event::EventHandler<ggez::GameError> for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if self.is_playing && self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.rows_cleared_count as i64)))) {
+        if self.is_playing && self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.lines_cleared_count as i64)))) {
             self.move_down(false);
             self.last_piece_dropped_time = self.global_timer.elapsed_ms();
         }
@@ -432,7 +470,7 @@ impl event::EventHandler<ggez::GameError> for GameState {
             canvas.draw(graphics::Text::new("SCORE:").set_scale(24.), glam::vec2(0.0, 0.0));
             canvas.draw(graphics::Text::new(self.score.to_string()).set_scale(24.), glam::vec2(0.0, 20.0));
             canvas.draw(graphics::Text::new("LINES:").set_scale(24.), glam::vec2(0.0, 60.0));
-            canvas.draw(graphics::Text::new(self.rows_cleared_count.to_string()).set_scale(24.), glam::vec2(0.0, 80.0));
+            canvas.draw(graphics::Text::new(self.lines_cleared_count.to_string()).set_scale(24.), glam::vec2(0.0, 80.0));
         }
         else {
             canvas.draw(graphics::Text::new("Press 'Space' to Start!").set_scale(40.0), glam::vec2(30.0,150.0));
@@ -467,7 +505,7 @@ impl event::EventHandler<ggez::GameError> for GameState {
                 if will_start {
                     self.score = 0;
                     self.global_timer.restart();
-                    self.rows_cleared_count = 0;
+                    self.lines_cleared_count = 0;
                     self.board = [[None; 20]; 10];
                     self.hold_piece = None;
                     self.next_piece = Piece::get_piece();
@@ -490,6 +528,8 @@ impl event::EventHandler<ggez::GameError> for GameState {
 // do the work of creating our MainState and running our game.
 // * Then, just call `game.run()` which runs the `Game` mainloop.
 pub fn main() -> GameResult {
+    // Hide the Console...
+    unsafe { winapi::um::wincon::FreeConsole() };
     // We add the CARGO_MANIFEST_DIR/resources to the resource paths
     // so that ggez will look in our cargo project directory for files.
     let (ctx, events_loop) = ggez::ContextBuilder::new("Tetris", "Payton Trosclair")
@@ -500,6 +540,7 @@ pub fn main() -> GameResult {
         // And finally we attempt to build the context and create the window. If it fails, we panic with the message
         // "Failed to build ggez context"
         .build()?;
+
 
     let state = GameState::new();
     event::run(ctx, events_loop, state)
