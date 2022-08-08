@@ -20,7 +20,7 @@ const GRID_CELL_SIZE: (i16, i16) = (30, 30);
 // Next we define how large we want our actual window to be by multiplying
 // the components of our grid size by its corresponding pixel size.
 const SCREEN_SIZE: (f32, f32) = (
-    600.0,
+    900.0,
     900.0,
 );
 
@@ -132,6 +132,11 @@ impl GameState {
 
             y = y - 1;
         }
+
+        if n > 0 {
+            self.rows_cleared_count = self.rows_cleared_count + n;
+            self.score = self.score + ((i16::pow(n, 2) * 100) as i32);
+        }
     }
 
     fn remove_line(&mut self, mut n: i8) {
@@ -240,7 +245,7 @@ impl GameState {
     }
 
     pub fn draw_board(&self, mut canvas: &mut Canvas) {
-        let rect = graphics::Rect::new(150.0,150.0,300.0,600.0);
+        let rect = graphics::Rect::new(300.0,150.0,300.0,600.0);
         let color = Color::new(0.5,0.5, 0.5, 1.0);
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(color));
 
@@ -261,7 +266,7 @@ impl GameState {
                     PieceColor::Black => Color::BLACK,
                     PieceColor::White => Color::WHITE
                 };
-                let rect = graphics::Rect::new(((x as f32) * 30.0) + 150.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
+                let rect = graphics::Rect::new(((x as f32) * 30.0) + 300.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
                 canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
                 x = x + 1;
             }
@@ -270,6 +275,50 @@ impl GameState {
 
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.get_drop_shadow_y(), PieceColor::White);
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
+
+
+        canvas.draw(graphics::Text::new("NEXT:").set_scale(24.), glam::vec2(610.0, 150.0));
+
+        let next_box = graphics::Rect::new(610.0, 170.0, 120.0, 120.0);
+        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
+        self.draw_next_box(&mut canvas, self.next_piece.rotation[0], 610.0, 170.0, self.next_piece.piece_color);
+
+        canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(610.0, 300.0));
+
+        let next_box = graphics::Rect::new(610.0, 320.0, 120.0, 120.0);
+        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
+
+        if self.hold_piece.is_some() {
+            let hold_piece = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
+            self.draw_next_box(&mut canvas, hold_piece.rotation[0], 610.0, 320.0, hold_piece.piece_color);
+        }
+    }
+
+    fn draw_next_box(&self, canvas: &mut Canvas, rotation: u32, x: f32, y: f32, color: PieceColor) {
+        let mut iterations = 0;
+        let mut func = |x: f32, y: f32| {
+
+            let print_color = match color {
+                PieceColor::Red => Color::RED,
+                PieceColor::Purple => Color::MAGENTA,
+                PieceColor::Green => Color::GREEN,
+                PieceColor::Blue => Color::BLUE,
+                PieceColor::Cyan => Color::CYAN,
+                PieceColor::Orange => Color::new(1.0,0.5, 0.2, 100.0),
+                PieceColor::Yellow => Color::YELLOW,
+                PieceColor::Black => Color::BLACK,
+                PieceColor::White => Color::WHITE
+            };
+            let rect = graphics::Rect::new(x, y,30.0,30.0);
+            canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
+        };
+        while iterations < 16
+        {
+            if (rotation & (0x8000 >> iterations)) > 0 {
+                func(x + (((iterations % 4) as f32) * 30.0), y + (((iterations / 4) as f32) * 30.0));
+            }
+            iterations = iterations + 1;
+        }
     }
 
     fn draw_piece(&self, canvas: &mut Canvas, rotation: u32, x: i8, y: i8, color: PieceColor) {
@@ -287,7 +336,7 @@ impl GameState {
                 PieceColor::Black => Color::BLACK,
                 PieceColor::White => Color::WHITE
             };
-            let rect = graphics::Rect::new(((x as f32) * 30.0) + 150.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
+            let rect = graphics::Rect::new(((x as f32) * 30.0) + 300.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
         };
         while iterations < 16
@@ -393,13 +442,19 @@ impl event::EventHandler<ggez::GameError> for GameState {
 
         self.draw_board(&mut canvas);
 
+        canvas.draw(graphics::Text::new("SCORE:").set_scale(24.), glam::vec2(200.0, 150.0));
+        canvas.draw(graphics::Text::new(self.score.to_string()).set_scale(24.), glam::vec2(200.0, 170.0));
+        canvas.draw(graphics::Text::new("LINES:").set_scale(24.), glam::vec2(200.0, 210.0));
+        canvas.draw(graphics::Text::new(self.rows_cleared_count.to_string()).set_scale(24.), glam::vec2(200.0, 230.0));
+
+
         canvas.finish(ctx)?;
         Ok(())
     }
 
     fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> GameResult {
         if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
-            let is_successful_move = match dir {
+            match dir {
                 GameInput::Down => self.move_down(true),
                 GameInput::Left => self.move_direction(dir),
                 GameInput::Right => self.move_direction(dir),
