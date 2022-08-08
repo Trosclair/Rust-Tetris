@@ -22,8 +22,8 @@ const GRID_CELL_SIZE: (i16, i16) = (30, 30);
 // Next we define how large we want our actual window to be by multiplying
 // the components of our grid size by its corresponding pixel size.
 const SCREEN_SIZE: (f32, f32) = (
-    900.0,
-    900.0,
+    540.0,
+    600.0,
 );
 
 #[derive(Copy, Clone)]
@@ -36,7 +36,7 @@ enum PieceColor {
     Green,
     Purple,
     Black,
-    White
+    Gray
 }
 
 struct GameState {
@@ -48,11 +48,12 @@ struct GameState {
     has_held_a_piece: bool,
     global_timer: Stopwatch,
     last_piece_dropped_time: i64,
+    is_playing: bool,
     board: [[Option<PieceColor>; 20]; 10]
 }
 
 impl GameState {
-    pub fn new(board: [[Option<PieceColor>; 20]; 10]) -> Self {
+    pub fn new() -> Self {
         GameState {
             rows_cleared_count: 0,
             score: 0,
@@ -62,7 +63,8 @@ impl GameState {
             hold_piece: None,
             global_timer: Stopwatch::start_new(),
             last_piece_dropped_time: 0,
-            board
+            is_playing: false,
+            board: [[None; 20]; 10]
         }
     }
 
@@ -110,12 +112,14 @@ impl GameState {
     }
 
     pub fn after_drop(&mut self) {
-        self.drop_piece();
+        self.commit_piece_to_board();
         self.remove_lines();
         self.current_piece = self.next_piece;
         self.next_piece = Piece::get_piece();
         self.has_held_a_piece = false;
-        self.check_collision(self.current_piece.x, self.current_piece.y);
+        if self.check_collision(self.current_piece.x, self.current_piece.y) {
+            self.is_playing = false;
+        }
     }
 
     fn remove_lines(&mut self) {
@@ -160,7 +164,7 @@ impl GameState {
         }
     }
 
-    pub fn drop_piece(&mut self) {
+    pub fn commit_piece_to_board(&mut self) {
         let mut iterations = 0;
         let mut func = |x: i8, y: i8| {
             self.board[x as usize][y as usize] = Option::from(self.current_piece.piece_color);
@@ -253,9 +257,6 @@ impl GameState {
     }
 
     pub fn draw_board(&self, mut canvas: &mut Canvas) {
-        let rect = graphics::Rect::new(300.0,150.0,300.0,600.0);
-        let color = Color::new(0.5,0.5, 0.5, 1.0);
-        canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(color));
 
         let mut y: i8 = 0;
 
@@ -272,33 +273,33 @@ impl GameState {
                     PieceColor::Orange => Color::new(1.0,0.5, 0.2, 1.0),
                     PieceColor::Yellow => Color::YELLOW,
                     PieceColor::Black => Color::BLACK,
-                    PieceColor::White => Color::WHITE
+                    PieceColor::Gray => Color::new(0.5,0.5, 0.5, 1.0)
                 };
-                let rect = graphics::Rect::new(((x as f32) * 30.0) + 300.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
+                let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, ((y as f32) * 30.0),30.0,30.0);
                 canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
                 x = x + 1;
             }
             y = y + 1;
         }
 
-        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.get_drop_shadow_y(), PieceColor::White);
+        self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.get_drop_shadow_y(), PieceColor::Gray);
         self.draw_piece(&mut canvas, self.current_piece.rotation[self.current_piece.rotation_state as usize], self.current_piece.x, self.current_piece.y, self.current_piece.piece_color);
 
 
-        canvas.draw(graphics::Text::new("NEXT:").set_scale(24.), glam::vec2(610.0, 150.0));
+        canvas.draw(graphics::Text::new("NEXT:").set_scale(24.), glam::vec2(410.0, 0.0));
 
-        let next_box = graphics::Rect::new(610.0, 170.0, 120.0, 120.0);
+        let next_box = graphics::Rect::new(410.0, 20.0, 120.0, 120.0);
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
-        self.draw_next_box(&mut canvas, self.next_piece.rotation[0], 610.0, 170.0, self.next_piece.piece_color);
+        self.draw_next_box(&mut canvas, self.next_piece.rotation[0], 410.0, 20.0, self.next_piece.piece_color);
 
-        canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(610.0, 300.0));
+        canvas.draw(graphics::Text::new("HOLD:").set_scale(24.), glam::vec2(460.0, 150.0));
 
-        let next_box = graphics::Rect::new(610.0, 320.0, 120.0, 120.0);
+        let next_box = graphics::Rect::new(410.0, 170.0, 120.0, 120.0);
         canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(next_box.point()).scale(next_box.size()).color(Color::BLACK));
 
         if self.hold_piece.is_some() {
             let hold_piece = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
-            self.draw_next_box(&mut canvas, hold_piece.rotation[0], 610.0, 320.0, hold_piece.piece_color);
+            self.draw_next_box(&mut canvas, hold_piece.rotation[0], 410.0, 170.0, hold_piece.piece_color);
         }
     }
 
@@ -315,7 +316,7 @@ impl GameState {
                 PieceColor::Orange => Color::new(1.0,0.5, 0.2, 100.0),
                 PieceColor::Yellow => Color::YELLOW,
                 PieceColor::Black => Color::BLACK,
-                PieceColor::White => Color::WHITE
+                PieceColor::Gray => Color::new(0.5,0.5, 0.5, 1.0)
             };
             let rect = graphics::Rect::new(x, y,30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
@@ -342,9 +343,9 @@ impl GameState {
                 PieceColor::Orange => Color::new(1.0,0.5, 0.2, 100.0),
                 PieceColor::Yellow => Color::YELLOW,
                 PieceColor::Black => Color::BLACK,
-                PieceColor::White => Color::WHITE
+                PieceColor::Gray => Color::new(0.5,0.5, 0.5, 1.0)
             };
-            let rect = graphics::Rect::new(((x as f32) * 30.0) + 300.0, ((y as f32) * 30.0) + 150.0,30.0,30.0);
+            let rect = graphics::Rect::new(((x as f32) * 30.0) + 100.0, ((y as f32) * 30.0),30.0,30.0);
             canvas.draw(&graphics::Quad, graphics::DrawParam::new().dest(rect.point()).scale(rect.size()).color(print_color));
         };
         while iterations < 16
@@ -406,7 +407,8 @@ enum GameInput {
     HardDrop,
     RotateRight,
     RotateLeft,
-    Hold
+    Hold,
+    Start
 }
 
 impl GameInput {
@@ -423,6 +425,7 @@ impl GameInput {
             KeyCode::E => Some(GameInput::Hold),
             KeyCode::J => Some(GameInput::RotateLeft),
             KeyCode::K => Some(GameInput::RotateRight),
+            KeyCode::Space => Some(GameInput::Start),
             _ => None,
         }
     }
@@ -437,7 +440,7 @@ impl GameInput {
 // that you can override if you wish, but the defaults are fine.
 impl event::EventHandler<ggez::GameError> for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.rows_cleared_count as i64)))) {
+        if self.is_playing && self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.rows_cleared_count as i64)))) {
             self.move_down(false);
             self.last_piece_dropped_time = self.global_timer.elapsed_ms();
         }
@@ -451,29 +454,56 @@ impl event::EventHandler<ggez::GameError> for GameState {
             graphics::CanvasLoadOp::Clear([0.1, 0.2, 0.3, 1.0].into()),
         );
 
-        self.draw_board(&mut canvas);
+        if self.is_playing {
+            self.draw_board(&mut canvas);
 
-        canvas.draw(graphics::Text::new("SCORE:").set_scale(24.), glam::vec2(200.0, 150.0));
-        canvas.draw(graphics::Text::new(self.score.to_string()).set_scale(24.), glam::vec2(200.0, 170.0));
-        canvas.draw(graphics::Text::new("LINES:").set_scale(24.), glam::vec2(200.0, 210.0));
-        canvas.draw(graphics::Text::new(self.rows_cleared_count.to_string()).set_scale(24.), glam::vec2(200.0, 230.0));
-
+            canvas.draw(graphics::Text::new("SCORE:").set_scale(24.), glam::vec2(0.0, 0.0));
+            canvas.draw(graphics::Text::new(self.score.to_string()).set_scale(24.), glam::vec2(0.0, 20.0));
+            canvas.draw(graphics::Text::new("LINES:").set_scale(24.), glam::vec2(0.0, 60.0));
+            canvas.draw(graphics::Text::new(self.rows_cleared_count.to_string()).set_scale(24.), glam::vec2(0.0, 80.0));
+        }
+        else {
+            canvas.draw(graphics::Text::new("Press 'Space' to Start!").set_scale(40.0), glam::vec2(30.0,150.0));
+        }
 
         canvas.finish(ctx)?;
         Ok(())
     }
 
     fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> GameResult {
-        if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
-            match dir {
-                GameInput::Down => self.move_down(true),
-                GameInput::Left => self.move_direction(dir),
-                GameInput::Right => self.move_direction(dir),
-                GameInput::RotateRight => self.rotate(dir),
-                GameInput::RotateLeft => self.rotate(dir),
-                GameInput::HardDrop => self.hard_drop(),
-                GameInput::Hold => self.hold(),
-            };
+        if self.is_playing {
+            if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
+                match dir {
+                    GameInput::Down => self.move_down(true),
+                    GameInput::Left => self.move_direction(dir),
+                    GameInput::Right => self.move_direction(dir),
+                    GameInput::RotateRight => self.rotate(dir),
+                    GameInput::RotateLeft => self.rotate(dir),
+                    GameInput::HardDrop => self.hard_drop(),
+                    GameInput::Hold => self.hold(),
+                    _ => false
+                };
+            }
+        }
+        else {
+
+            if let Some(dir) = input.keycode.and_then(GameInput::from_keycode){
+               let will_start =  match dir {
+                    GameInput::Start => true,
+                    _ => false
+                };
+                if will_start {
+                    self.score = 0;
+                    self.global_timer.restart();
+                    self.rows_cleared_count = 0;
+                    self.board = [[None; 20]; 10];
+                    self.hold_piece = None;
+                    self.next_piece = Piece::get_piece();
+                    self.current_piece = Piece::get_piece();
+                    self.last_piece_dropped_time = self.global_timer.elapsed_ms();
+                    self.is_playing = true;
+                }
+            }
         }
         Ok(())
     }
@@ -499,7 +529,6 @@ pub fn main() -> GameResult {
         // "Failed to build ggez context"
         .build()?;
 
-    let mut board: [[Option<PieceColor>; 20]; 10] = [[None; 20]; 10];
-    let state = GameState::new(board);
+    let state = GameState::new();
     event::run(ctx, events_loop, state)
 }
