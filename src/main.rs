@@ -10,6 +10,8 @@ use std::process::exit;
 use ggez::graphics::{Canvas, Color};
 use ggez::mint::Vector2;
 use ggez::winit::dpi::Size;
+extern crate stopwatch;
+use stopwatch::{Stopwatch};
 
 // Here we define the size of our game board in terms of how many grid
 // cells it will take up. We choose to make a 30 x 20 game board.
@@ -44,6 +46,8 @@ struct GameState {
     rows_cleared_count: i16,
     score: i32,
     has_held_a_piece: bool,
+    global_timer: Stopwatch,
+    last_piece_dropped_time: i64,
     board: [[Option<PieceColor>; 20]; 10]
 }
 
@@ -56,6 +60,8 @@ impl GameState {
             current_piece: Piece::get_piece(),
             next_piece: Piece::get_piece(),
             hold_piece: None,
+            global_timer: Stopwatch::start_new(),
+            last_piece_dropped_time: 0,
             board
         }
     }
@@ -185,6 +191,8 @@ impl GameState {
             let mut hold_piece_as_some = match self.hold_piece { None => Piece::get_piece(), Some(temp) => temp };
             hold_piece_as_some.x = 4;
             hold_piece_as_some.y = 0;
+
+            self.last_piece_dropped_time = self.global_timer.elapsed_ms();
         }
         return true;
     }
@@ -429,7 +437,10 @@ impl GameInput {
 // that you can override if you wish, but the defaults are fine.
 impl event::EventHandler<ggez::GameError> for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-
+        if self.global_timer.elapsed_ms() > (self.last_piece_dropped_time + (1000 - (5 * (self.rows_cleared_count as i64)))) {
+            self.move_down(false);
+            self.last_piece_dropped_time = self.global_timer.elapsed_ms();
+        }
 
         Ok(())
     }
